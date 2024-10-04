@@ -371,10 +371,10 @@ df['designer_encoded'] = df['designer_clean'].factorize()[0]
 
 
 '''
-Метод Kruskal-Wallis Test 
-Гіпотеза - категорія меблів значно впливає на її розмір.
-Н0 - немає статистичної залежності між розмірами меблів і їх категоріями
-Н1 - є статистично значуща залежність між розмірами меблів і їх категоріями
+Method: Kruskal-Wallis Test
+Hypothesis - The category of furniture significantly affects its size.
+H0 - There is no statistical dependence between the sizes of furniture and their categories.
+H1 - There is a statistically significant dependence between the sizes of furniture and their categories.
 '''
 
 categories = df.index.unique()
@@ -383,15 +383,15 @@ depth_groups = [df['depth_1'][df.index == category] for category in categories]
 height_groups = [df['height_1'][df.index == category] for category in categories]
 width_groups = [df['width_1'][df.index == category] for category in categories]
 
-# # Тест Kruskal-Wallis for depth
+# # Test Kruskal-Wallis for depth
 # stat_depth, p_depth = kruskal(*depth_groups)
 # print(f'Kruskal-Wallis test for depth: H-statistic = {stat_depth}, p-value = {p_depth}')
 #
-# # Тест Kruskal-Wallis for height
+# # Test Kruskal-Wallis for height
 # stat_height, p_height = kruskal(*height_groups)
 # print(f'Kruskal-Wallis test for height: H-statistic = {stat_height}, p-value = {p_height}')
 #
-# # Тест Kruskal-Wallis for width
+# # Test Kruskal-Wallis for width
 # stat_width, p_width = kruskal(*width_groups)
 # print(f'Kruskal-Wallis test for width: H-statistic = {stat_width}, p-value = {p_width}')
 #
@@ -413,10 +413,10 @@ width_groups = [df['width_1'][df.index == category] for category in categories]
 #     print("There is no significant difference in width between categories (fail to reject H0)")
 
 '''
-Метод Chi-Square Test
-Гіпотеза - Колір продукціі на пряму залежить від категоріі товарів.
-Н0 - кольори не залежать від категоріі товарів
-Н1 - кольори залежать від категоріі товарів
+Method: Chi-Square Test
+Hypothesis - The color of the product directly depends on the category of goods.
+H0 - Colors are independent of the category of goods.
+H1 - Colors depend on the category of goods.
 '''
 # df = df.reset_index()
 # cross_tab = pd.crosstab(df['category'], df['all_colors'])
@@ -562,94 +562,3 @@ forest_grid = GridSearchCV(RandomForestRegressor(), param_grid=params, cv=5)
 # plt.tight_layout()
 # plt.show()
 
-
-col_prepr = ColumnTransformer(transformers=[
-    ('num', StandardScaler()),  # Масштабування числових ознак
-    ('cat', OneHotEncoder())  # Кодування категорійних ознак
-])
-df = df.reset_index()
-X = df[['depth', 'width', 'height', 'category','designer_clean', 'other_colors']]
-Y = df['price']
-def getBestRegressor(X, Y):
-    X_train, X_test, Y_train, Y_test = sk.model_selection.train_test_split(X, Y, test_size=0.2, random_state=42)
-
-    models = [
-        sk.linear_model.LinearRegression(),
-        sk.linear_model.LassoCV(),
-        sk.linear_model.RidgeCV(),
-        sk.svm.SVR(kernel='linear'),
-        sk.neighbors.KNeighborsRegressor(n_neighbors=16),
-        sk.tree.DecisionTreeRegressor(max_depth=10, random_state=42),
-        RandomForestRegressor(random_state=42),
-        GradientBoostingRegressor(),
-        BaggingRegressor(random_state=42),
-        HistGradientBoostingRegressor()
-    ]
-
-    TestModels = pd.DataFrame()
-    res = {}
-    tmp = {}
-
-    for model in models:
-        # Створення пайплайну для кожної моделі
-        model_pipeline = Pipeline(steps=[
-            ('col_prepr', col_prepr),
-            ('model', model)
-        ])
-
-        m = str(model)
-        tmp['Model'] = m[:m.index('(')]
-
-        # Навчання моделі
-        model_pipeline.fit(X_train, Y_train)
-
-        # Оцінка моделі
-        tmp['R^2'] = '{:.5f}'.format(model_pipeline.score(X_test, Y_test))
-        tmp['MAE'] = '{:.5f}'.format(sk.metrics.mean_absolute_error(model_pipeline.predict(X_test), Y_test))
-        tmp['RMSE'] = '{:.5f}'.format(np.sqrt(sk.metrics.mean_squared_error(model_pipeline.predict(X_test), Y_test)))
-
-        TestModels = pd.concat([TestModels, pd.DataFrame([tmp])])
-
-    TestModels.set_index('Model', inplace=True)
-    res['model'] = TestModels
-    res['X_train'] = X_train
-    res['Y_train'] = Y_train
-    res['X_test'] = X_test
-    res['Y_test'] = Y_test
-    return res
-
-# Виклик функції
-model = getBestRegressor(X, Y)
-model_info = model['model'].sort_values(by='R^2', ascending=False)
-model_info[['R^2', 'MAE', 'RMSE']] = model_info[['R^2', 'MAE', 'RMSE']].astype(float)
-print(model_info)
-
-cv_rf_regression = KFold(n_splits=5, shuffle=True, random_state=42)
-
-neg_mse_scores_rf_regression = cross_val_score(forest_grid, X_train, X_test, Y_train, Y_test.drop(exclude_cols, axis=1),
-                                 X_train, X_test, Y_train, Y_test['price'], cv=cv_rf_regression, scoring='neg_mean_squared_error')
-
-print('RMSE: {:.2f}'.format(np.sqrt(-neg_mse_scores_rf_regression.mean())))
-
-mse_scores_rf_regression = -neg_mse_scores_rf_regression
-mse_mean_rf_regression = mse_scores_rf_regression.mean()
-
-print('MSE: {:.2f}'.format(mse_mean_rf_regression))
-
-fig, ax = plt.subplots(figsize=(8, 4))
-
-ax.barh(range(len(mse_scores_rf_regression)), np.sqrt(mse_scores_rf_regression), color='green')
-ax.set_yticks(range(len(mse_scores_rf_regression)))
-ax.set_yticklabels(['Fold {}'.format(i+1) for i in range(len(mse_scores_rf_regression))])
-plt.axvline(np.sqrt(mse_mean_rf_regression), color='y', linestyle='dashed', linewidth=2.5,
-            label=f"RMSE: {round(np.sqrt(mse_mean_rf_regression))}")
-for i, v in enumerate(mse_scores_rf_regression):
-    plt.text(np.sqrt(v)+7, i, f"{round(np.sqrt(v))}", ha='left', va='center', color="black", fontsize=12,
-             bbox=dict(facecolor='orange', edgecolor='pink', boxstyle='round4,pad=0.4'))
-ax.set_xlim(0, np.sqrt(mse_mean_rf_regression).max() * 1.225)
-plt.xlabel('RMSE')
-plt.ylabel('Fold')
-plt.title('Cross-validation results of RandomForestRegressor')
-plt.legend(loc='upper right', fontsize=13)
-plt.gca().grid(False)
-plt.show()
